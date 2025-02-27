@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Keyboard Builder Game</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background-color: #f0f8ff;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #tile-container {
+      margin: 20px auto;
+      padding: 10px;
+      width: 90%;
+      max-width: 600px;
+      border: 2px solid #000;
+      background: #eee;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .tile {
+      width: 50px;
+      height: 50px;
+      margin: 5px;
+      background-color: blue;
+      color: white;
+      font-size: 24px;
+      line-height: 50px;
+      text-align: center;
+      border-radius: 5px;
+      cursor: move;
+      touch-action: none; /* Prevent default touch behavior */
+    }
+    #keyboard {
+      margin: 20px auto;
+      display: inline-block;
+    }
+    .keyboard-row {
+      display: flex;
+      justify-content: center;
+      margin: 5px;
+    }
+    .key-slot {
+      width: 50px;
+      height: 50px;
+      margin: 5px;
+      background-color: lightgray;
+      border: 2px dashed #aaa;
+      font-size: 24px;
+      line-height: 50px;
+      text-align: center;
+      border-radius: 5px;
+    }
+    .correct {
+      background-color: green !important;
+      border: none;
+    }
+    #message {
+      font-size: 48px;
+      color: purple;
+      display: none;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Build the Keyboard!</h1>
+  <div id="tile-container"></div>
+
+  <div id="keyboard"></div>
+
+  <div id="message">Super Job!</div>
+
+  <script>
+    // Define the QWERTY keyboard layout rows
+    const keyboardLayout = [
+      ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+      ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+      ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
+    ];
+
+    // Combine all letters into one array for the tiles
+    const allLetters = [].concat(...keyboardLayout);
+    
+    // Shuffle function (Fisher-Yates)
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    // Populate the tile container with scrambled blue tiles
+    const tileContainer = document.getElementById('tile-container');
+    const shuffledLetters = shuffle([...allLetters]);
+    
+    shuffledLetters.forEach(letter => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.draggable = true;
+      tile.textContent = letter;
+      // Ensure a unique id for drag events
+      tile.id = 'tile-' + letter + '-' + Math.random().toString(36).substr(2,5);
+      // Desktop drag events
+      tile.addEventListener('dragstart', dragStart);
+      // Touch events for iPad and mobile devices
+      tile.addEventListener('touchstart', touchStart, {passive: false});
+      tile.addEventListener('touchmove', touchMove, {passive: false});
+      tile.addEventListener('touchend', touchEnd, {passive: false});
+      tileContainer.appendChild(tile);
+    });
+
+    // Create the keyboard layout with drop zones
+    const keyboard = document.getElementById('keyboard');
+    
+    keyboardLayout.forEach(row => {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'keyboard-row';
+      row.forEach(letter => {
+        const slot = document.createElement('div');
+        slot.className = 'key-slot';
+        slot.dataset.letter = letter; // store the correct letter for this slot
+        // Desktop drag events for drop zones
+        slot.addEventListener('dragover', dragOver);
+        slot.addEventListener('drop', drop);
+        rowDiv.appendChild(slot);
+      });
+      keyboard.appendChild(rowDiv);
+    });
+
+    // Desktop drag event functions
+    function dragStart(e) {
+      e.dataTransfer.setData('text/plain', e.target.textContent);
+      e.dataTransfer.setData('tileId', e.target.id);
+    }
+
+    function dragOver(e) {
+      e.preventDefault(); // Necessary to allow a drop
+    }
+
+    function drop(e) {
+      e.preventDefault();
+      const letter = e.dataTransfer.getData('text/plain');
+      const tileId = e.dataTransfer.getData('tileId');
+      const correctLetter = e.target.dataset.letter;
+      
+      // Only allow drop if the slot is empty
+      if (e.target.textContent === '') {
+        if (letter === correctLetter) {
+          e.target.textContent = letter;
+          e.target.classList.add('correct');
+          // Remove the tile from the tile container
+          const tile = document.getElementById(tileId);
+          if (tile) {
+            tile.parentNode.removeChild(tile);
+          }
+          checkCompletion();
+        } else {
+          // Optionally, add feedback for an incorrect drop
+        }
+      }
+    }
+
+    // Touch event variables
+    let currentTile = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function touchStart(e) {
+      e.preventDefault();
+      currentTile = e.target;
+      const rect = currentTile.getBoundingClientRect();
+      const touch = e.touches[0];
+      offsetX = touch.clientX - rect.left;
+      offsetY = touch.clientY - rect.top;
+      // Set absolute positioning so the tile can move freely
+      currentTile.style.position = 'absolute';
+      currentTile.style.zIndex = 1000;
+      // Move the tile to the body for smoother dragging
+      document.body.appendChild(currentTile);
+      // Set initial position
+      currentTile.style.left = (touch.clientX - offsetX) + 'px';
+      currentTile.style.top = (touch.clientY - offsetY) + 'px';
+    }
+
+    function touchMove(e) {
+      e.preventDefault();
+      if (currentTile) {
+        const touch = e.touches[0];
+        currentTile.style.left = (touch.clientX - offsetX) + 'px';
+        currentTile.style.top = (touch.clientY - offsetY) + 'px';
+      }
+    }
+
+    function touchEnd(e) {
+      e.preventDefault();
+      if (currentTile) {
+        // Get the center of the tile to determine drop target
+        const rect = currentTile.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        // Temporarily disable pointer events on the tile so we get the element beneath it
+        currentTile.style.pointerEvents = "none";
+        let dropTarget = document.elementFromPoint(centerX, centerY);
+        currentTile.style.pointerEvents = "auto";
+        
+        // Walk up the DOM tree to find a key-slot
+        while (dropTarget && !dropTarget.classList.contains('key-slot')) {
+          dropTarget = dropTarget.parentElement;
+        }
+        
+        if (dropTarget && dropTarget.textContent === '') {
+          const tileLetter = currentTile.textContent;
+          const correctLetter = dropTarget.dataset.letter;
+          if (tileLetter === correctLetter) {
+            dropTarget.textContent = tileLetter;
+            dropTarget.classList.add('correct');
+            currentTile.parentNode && currentTile.parentNode.removeChild(currentTile);
+            checkCompletion();
+          } else {
+            // Incorrect placement: return tile to tile container
+            tileContainer.appendChild(currentTile);
+            currentTile.style.position = '';
+            currentTile.style.left = '';
+            currentTile.style.top = '';
+            currentTile.style.zIndex = '';
+          }
+        } else {
+          // No valid drop target: return tile to tile container
+          tileContainer.appendChild(currentTile);
+          currentTile.style.position = '';
+          currentTile.style.left = '';
+          currentTile.style.top = '';
+          currentTile.style.zIndex = '';
+        }
+        currentTile = null;
+      }
+    }
+
+    // Check if all keys are correctly placed; if so, show the "Super Job!" message
+    function checkCompletion() {
+      const slots = document.querySelectorAll('.key-slot');
+      let complete = true;
+      slots.forEach(slot => {
+        if (slot.textContent === '' || slot.textContent !== slot.dataset.letter) {
+          complete = false;
+        }
+      });
+      if (complete) {
+        document.getElementById('message').style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>
